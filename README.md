@@ -1,3 +1,22 @@
+> **This is a modified copy of [webadderallorg/Recordly](https://github.com/webadderallorg/Recordly).**
+> The original project is the work of its authors. This copy adds my own changes on top of upstream commit `360b160` and is not affiliated with or endorsed by them.
+
+## My changes
+
+- **Region recording:** select and record part of a screen, with an on-screen frame during the countdown (ScreenCaptureKit on macOS).
+- **GIF export for GitHub:** a one-click mode that fits the GIF under GitHub's 10 MB attachment limit.
+- **Menu bar recording indicator:** a red dot while recording.
+- **Multi-display control bar:** the floating bar can be dragged across displays on macOS.
+- **Double-start fix:** pressing Enter on the region picker no longer starts a second countdown.
+
+### Notes on this copy
+
+- The rebuilt `recordly-screencapturekit-helper` binaries are included to go with the changed Swift source.
+
+The upstream README follows. Its download links and badges point to the original project, not to this copy.
+
+---
+
 Language: EN | [简中](README.zh-CN.md)
 
 <p align="center">

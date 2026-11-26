@@ -50,6 +50,7 @@ import {
 } from "./updater";
 import {
 	createEditorWindow,
+	closeRecordingRegionOverlayWindow,
 	createHudOverlayWindow,
 	createSourceSelectorWindow,
 	getHudOverlayWindow,
@@ -250,9 +251,20 @@ function getDefaultTrayIcon() {
 	return defaultTrayIcon;
 }
 
+function createRecordingMenuBarIcon() {
+	// Crisp red dot for the macOS menu bar recording state.
+	const svg =
+		'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">' +
+		'<circle cx="9" cy="9" r="6.25" fill="#E11D48"/>' +
+		"</svg>";
+	return nativeImage.createFromDataURL(
+		`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+	);
+}
+
 function getRecordingTrayIcon() {
 	if (!recordingTrayIcon) {
-		recordingTrayIcon = getTrayIcon("rec-button.png");
+		recordingTrayIcon = createRecordingMenuBarIcon();
 	}
 	return recordingTrayIcon;
 }
@@ -762,6 +774,10 @@ function updateTrayMenu(recording: boolean = false) {
 				{
 					label: "Stop Recording",
 					click: () => {
+						const hud = getHudOverlayWindow();
+						if (hud && !hud.isDestroyed()) {
+							hud.webContents.send("stop-recording-from-tray");
+						}
 						if (mainWindow && !mainWindow.isDestroyed()) {
 							mainWindow.webContents.send("stop-recording-from-tray");
 						}
@@ -788,6 +804,10 @@ function updateTrayMenu(recording: boolean = false) {
 	trayContextMenu = menu;
 	tray.setImage(trayIcon);
 	tray.setToolTip(trayToolTip);
+	// Colored recording dot should not be treated as a macOS template glyph.
+	if (process.platform === "darwin") {
+		tray.setTitle(recording ? "REC" : "");
+	}
 	if (process.platform !== "win32") {
 		tray.setContextMenu(menu);
 	}
@@ -891,6 +911,7 @@ function createSourceSelectorWindowWrapper() {
 // explicitly with Cmd + Q.
 app.on("before-quit", () => {
 	killWindowsCaptureProcess();
+	closeRecordingRegionOverlayWindow();
 	showCursor();
 	cleanupNativeVideoExportSessions();
 	void cleanupAllExportStreams();

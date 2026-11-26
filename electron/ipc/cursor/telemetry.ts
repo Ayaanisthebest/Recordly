@@ -208,6 +208,26 @@ export function getNormalizedCursorPoint() {
 		: null;
 	const display = sourceDisplay ?? getScreen().getDisplayNearestPoint(cursor);
 	const bounds = display.bounds;
+	const region = selectedSource?.captureRegion;
+	if (
+		region &&
+		typeof region.x === "number" &&
+		typeof region.y === "number" &&
+		typeof region.width === "number" &&
+		typeof region.height === "number" &&
+		region.width > 1 &&
+		region.height > 1
+	) {
+		const regionX = bounds.x + region.x;
+		const regionY = bounds.y + region.y;
+		const width = Math.max(1, region.width);
+		const height = Math.max(1, region.height);
+		return {
+			cx: clamp((cursor.x - regionX) / width, 0, 1),
+			cy: clamp((cursor.y - regionY) / height, 0, 1),
+		};
+	}
+
 	const width = Math.max(1, bounds.width);
 	const height = Math.max(1, bounds.height);
 

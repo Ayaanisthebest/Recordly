@@ -9,6 +9,8 @@ import type {
 	ExportMp4FrameRate,
 	ExportPipelineModel,
 	ExportQuality,
+	GifExportMode,
+	GifFitPreference,
 	GifFrameRate,
 	GifSizePreset,
 } from "@/lib/exporter";
@@ -39,6 +41,10 @@ interface ExportSettingsMenuProps {
 	onGifLoopChange?: (loop: boolean) => void;
 	gifSizePreset: GifSizePreset;
 	onGifSizePresetChange?: (preset: GifSizePreset) => void;
+	gifExportMode?: GifExportMode;
+	onGifExportModeChange?: (mode: GifExportMode) => void;
+	gifFitPreference?: GifFitPreference;
+	onGifFitPreferenceChange?: (preference: GifFitPreference) => void;
 	gifOutputDimensions: { width: number; height: number };
 	onExport?: () => void;
 	className?: string;
@@ -68,13 +74,30 @@ export function ExportSettingsMenu({
 	onGifLoopChange,
 	gifSizePreset,
 	onGifSizePresetChange,
+	gifExportMode = "manual",
+	onGifExportModeChange,
+	gifFitPreference = "resolution",
+	onGifFitPreferenceChange,
 	gifOutputDimensions,
 	onExport,
 	className,
 }: ExportSettingsMenuProps) {
 	const tSettings = useScopedT("settings");
 	const isLegacyModel = exportPipelineModel === "legacy";
+	const isGithubGif = exportFormat === "gif" && gifExportMode === "github";
 
+	const gifFitPreferenceLabel =
+		gifFitPreference === "smoothness"
+			? tSettings("export.gifPreferSmoothnessHint", "Keep motion smooth — shrink size and colors first")
+			: gifFitPreference === "colors"
+				? tSettings(
+						"export.gifPreferColorsHint",
+						"Keep colors rich — shrink size and frame rate first",
+					)
+				: tSettings(
+						"export.gifPreferResolutionHint",
+						"Keep sharpness — shrink colors and frame rate first",
+					);
 	return (
 		<div
 			className={cn(
@@ -398,114 +421,250 @@ export function ExportSettingsMenu({
 				</LayoutGroup>
 			) : (
 				<div className="mb-3 space-y-2">
-					<div className="flex items-center gap-2">
-						<LayoutGroup id="header-gif-frame-rate-toggle">
-							<div className="grid h-8 flex-1 grid-cols-4 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
-								{GIF_FRAME_RATES.map((rate) => {
-									const isActive = gifFrameRate === rate.value;
-									return (
-										<button
-											key={rate.value}
-											type="button"
-											onClick={() => onGifFrameRateChange?.(rate.value)}
-											aria-pressed={isActive}
-											className="relative rounded-lg text-[11px] font-medium transition-colors"
+					<LayoutGroup id="header-gif-mode-toggle">
+						<div className="grid h-8 grid-cols-2 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+							{(
+								[
+									{
+										value: "manual" as const,
+										label: tSettings("export.gifModeManual", "Manual"),
+									},
+									{
+										value: "github" as const,
+										label: tSettings("export.gifModeGithub", "GitHub ≤10MB"),
+									},
+								] as const
+							).map((option) => {
+								const isActive = gifExportMode === option.value;
+								return (
+									<button
+										key={option.value}
+										type="button"
+										onClick={() => onGifExportModeChange?.(option.value)}
+										aria-pressed={isActive}
+										className="relative rounded-lg text-[11px] font-medium transition-colors"
+									>
+										{isActive ? (
+											<motion.span
+												layoutId="header-gif-mode-pill"
+												className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+												transition={{
+													type: "spring",
+													stiffness: 420,
+													damping: 34,
+												}}
+											/>
+										) : null}
+										<span
+											className={cn(
+												"relative z-10",
+												isActive
+													? "text-white dark:text-black"
+													: "text-muted-foreground hover:text-foreground",
+											)}
 										>
-											{isActive ? (
-												<motion.span
-													layoutId="header-gif-frame-rate-pill"
-											className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
-													transition={{
-														type: "spring",
-														stiffness: 420,
-														damping: 34,
-													}}
-												/>
-											) : null}
-											<span
-												className={cn(
-													"relative z-10",
-													isActive
-														? "text-white dark:text-black"
-														: "text-muted-foreground hover:text-foreground",
-												)}
-											>
-												{rate.value}
-											</span>
-										</button>
-									);
-								})}
-							</div>
-						</LayoutGroup>
-						<LayoutGroup id="header-gif-size-toggle">
-							<div className="grid h-8 flex-1 grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
-								{Object.entries(GIF_SIZE_PRESETS).map(([key]) => {
-									const isActive = gifSizePreset === key;
-									return (
-										<button
-											key={key}
-											type="button"
-											onClick={() =>
-												onGifSizePresetChange?.(key as GifSizePreset)
-											}
-											aria-pressed={isActive}
-											className="relative rounded-lg text-[11px] font-medium transition-colors"
-										>
-											{isActive ? (
-												<motion.span
-													layoutId="header-gif-size-pill"
-											className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
-													transition={{
-														type: "spring",
-														stiffness: 420,
-														damping: 34,
-													}}
-												/>
-											) : null}
-											<span
-												className={cn(
-													"relative z-10",
-													isActive
-														? "text-white dark:text-black"
-														: "text-muted-foreground hover:text-foreground",
-												)}
-											>
-												{key === "original"
-													? tSettings(
-															"export.sizePresetOriginalShort",
-															"Orig",
-														)
-													: key === "medium"
-														? tSettings(
-																"export.sizePresetMediumShort",
-																"Med",
-															)
-														: tSettings(
-																"export.sizePresetLargeShort",
-																"Lar",
-															)}
-											</span>
-										</button>
-									);
-								})}
-							</div>
-						</LayoutGroup>
-					</div>
-					<div className="flex items-center justify-between px-1">
-						<span className="text-[10px] text-muted-foreground/70">
-							{gifOutputDimensions.width} × {gifOutputDimensions.height}px
-						</span>
-						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-muted-foreground">
-								{tSettings("export.loop")}
-							</span>
-							<Switch
-								checked={gifLoop}
-								onCheckedChange={onGifLoopChange}
-								className="scale-75 data-[state=checked]:bg-[#2563EB]"
-							/>
+											{option.label}
+										</span>
+									</button>
+								);
+							})}
 						</div>
-					</div>
+					</LayoutGroup>
+
+					{isGithubGif ? (
+						<>
+							<p className="px-1 text-[10px] leading-relaxed text-muted-foreground/80">
+								{tSettings(
+									"export.gifGithubHelp",
+									"Auto-tunes resolution, FPS, and colors for GitHub’s 10MB limit.",
+								)}
+							</p>
+							<LayoutGroup id="header-gif-prefer-toggle">
+								<div className="grid h-8 grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+									{(
+										[
+											{
+												value: "resolution" as const,
+												label: tSettings("export.gifPreferResolution", "Res"),
+											},
+											{
+												value: "smoothness" as const,
+												label: tSettings("export.gifPreferSmoothness", "FPS"),
+											},
+											{
+												value: "colors" as const,
+												label: tSettings("export.gifPreferColors", "Colors"),
+											},
+										] as const
+									).map((option) => {
+										const isActive = gifFitPreference === option.value;
+										return (
+											<button
+												key={option.value}
+												type="button"
+												onClick={() =>
+													onGifFitPreferenceChange?.(option.value)
+												}
+												aria-pressed={isActive}
+												className="relative rounded-lg text-[11px] font-medium transition-colors"
+											>
+												{isActive ? (
+													<motion.span
+														layoutId="header-gif-prefer-pill"
+														className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+														transition={{
+															type: "spring",
+															stiffness: 420,
+															damping: 34,
+														}}
+													/>
+												) : null}
+												<span
+													className={cn(
+														"relative z-10",
+														isActive
+															? "text-white dark:text-black"
+															: "text-muted-foreground hover:text-foreground",
+													)}
+												>
+													{option.label}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+							</LayoutGroup>
+							<p className="px-1 text-[10px] text-muted-foreground/70">
+								{gifFitPreferenceLabel}
+							</p>
+							<div className="flex items-center justify-between px-1">
+								<span className="text-[10px] text-muted-foreground/70">
+									{tSettings("export.gifGithubPreferLabel", "Prefer")}
+								</span>
+								<div className="flex items-center gap-2">
+									<span className="text-[10px] text-muted-foreground">
+										{tSettings("export.loop")}
+									</span>
+									<Switch
+										checked={gifLoop}
+										onCheckedChange={onGifLoopChange}
+										className="scale-75 data-[state=checked]:bg-[#2563EB]"
+									/>
+								</div>
+							</div>
+						</>
+					) : (
+						<>
+							<div className="flex items-center gap-2">
+								<LayoutGroup id="header-gif-frame-rate-toggle">
+									<div className="grid h-8 flex-1 grid-cols-4 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+										{GIF_FRAME_RATES.map((rate) => {
+											const isActive = gifFrameRate === rate.value;
+											return (
+												<button
+													key={rate.value}
+													type="button"
+													onClick={() => onGifFrameRateChange?.(rate.value)}
+													aria-pressed={isActive}
+													className="relative rounded-lg text-[11px] font-medium transition-colors"
+												>
+													{isActive ? (
+														<motion.span
+															layoutId="header-gif-frame-rate-pill"
+															className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+															transition={{
+																type: "spring",
+																stiffness: 420,
+																damping: 34,
+															}}
+														/>
+													) : null}
+													<span
+														className={cn(
+															"relative z-10",
+															isActive
+																? "text-white dark:text-black"
+																: "text-muted-foreground hover:text-foreground",
+														)}
+													>
+														{rate.value}
+													</span>
+												</button>
+											);
+										})}
+									</div>
+								</LayoutGroup>
+								<LayoutGroup id="header-gif-size-toggle">
+									<div className="grid h-8 flex-1 grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+										{Object.entries(GIF_SIZE_PRESETS).map(([key]) => {
+											const isActive = gifSizePreset === key;
+											return (
+												<button
+													key={key}
+													type="button"
+													onClick={() =>
+														onGifSizePresetChange?.(key as GifSizePreset)
+													}
+													aria-pressed={isActive}
+													className="relative rounded-lg text-[11px] font-medium transition-colors"
+												>
+													{isActive ? (
+														<motion.span
+															layoutId="header-gif-size-pill"
+															className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+															transition={{
+																type: "spring",
+																stiffness: 420,
+																damping: 34,
+															}}
+														/>
+													) : null}
+													<span
+														className={cn(
+															"relative z-10",
+															isActive
+																? "text-white dark:text-black"
+																: "text-muted-foreground hover:text-foreground",
+														)}
+													>
+														{key === "original"
+															? tSettings(
+																	"export.sizePresetOriginalShort",
+																	"Orig",
+																)
+															: key === "medium"
+																? tSettings(
+																		"export.sizePresetMediumShort",
+																		"Med",
+																	)
+																: tSettings(
+																		"export.sizePresetLargeShort",
+																		"Lar",
+																	)}
+													</span>
+												</button>
+											);
+										})}
+									</div>
+								</LayoutGroup>
+							</div>
+							<div className="flex items-center justify-between px-1">
+								<span className="text-[10px] text-muted-foreground/70">
+									{gifOutputDimensions.width} × {gifOutputDimensions.height}px
+								</span>
+								<div className="flex items-center gap-2">
+									<span className="text-[10px] text-muted-foreground">
+										{tSettings("export.loop")}
+									</span>
+									<Switch
+										checked={gifLoop}
+										onCheckedChange={onGifLoopChange}
+										className="scale-75 data-[state=checked]:bg-[#2563EB]"
+									/>
+								</div>
+							</div>
+						</>
+					)}
 				</div>
 			)}
 
@@ -516,9 +675,11 @@ export function ExportSettingsMenu({
 				className="h-11 w-full gap-2 rounded-lg bg-[#2563EB] text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#2563EB]/90"
 			>
 				<Download className="h-4 w-4" />
-				{tSettings("export.exportVideo", undefined, {
-					format: exportFormat === "gif" ? "GIF" : "Video",
-				})}
+				{isGithubGif
+					? tSettings("export.exportGithubGif", "Export GitHub GIF")
+					: tSettings("export.exportVideo", undefined, {
+							format: exportFormat === "gif" ? "GIF" : "Video",
+						})}
 			</Button>
 		</div>
 	);

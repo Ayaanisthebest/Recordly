@@ -348,6 +348,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const nativeScreenRecording = useRef(false);
 	const nativeWindowsRecording = useRef(false);
 	const startInFlight = useRef(false);
+	/** Covers countdown + start so Enter can't double-fire toggleRecording. */
+	const recordingStartLock = useRef(false);
 	const hasPromptedForReselect = useRef(false);
 	const hasShownNativeWindowsFallbackToast = useRef(false);
 	const countdownDelayLoaded = useRef(false);
@@ -1355,7 +1357,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		};
 	}, [cleanupCapturedMedia, recoverNativeRecordingSession]);
 
-	const startRecording = async () => {
+	const startRecording = async (options?: { permissionsChecked?: boolean }) => {
 		if (startInFlight.current) {
 			return;
 		}
@@ -1395,9 +1397,11 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				}
 			}
 
-			const permissionsReady = await preparePermissions();
-			if (!permissionsReady) {
-				return;
+			if (!options?.permissionsChecked) {
+				const permissionsReady = await preparePermissions();
+				if (!permissionsReady) {
+					return;
+				}
 			}
 
 			recordingSessionTimestamp.current = Date.now();
@@ -2076,29 +2080,38 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	}, [cleanupCapturedMedia, markRecordingResumed, recording]);
 
 	const toggleRecording = async () => {
-		if (starting || countdownActive || finalizing) {
-			return;
-		}
-
 		if (recording) {
 			stopRecording.current();
 			return;
 		}
 
-		// Start recording with optional countdown
-		if (countdownDelay > 0) {
-			setCountdownActive(true);
-			try {
+		// Synchronous lock: Enter on the region picker often also activates the
+		// HUD Record button after focus moves, which previously started a second
+		// countdown that failed and left recording never calling startRecording.
+		if (recordingStartLock.current || startInFlight.current || starting || finalizing) {
+			return;
+		}
+
+		recordingStartLock.current = true;
+		setCountdownActive(true);
+		try {
+			const permissionsReady = await preparePermissions();
+			if (!permissionsReady) {
+				return;
+			}
+
+			if (countdownDelay > 0) {
 				const result = await window.electronAPI.startCountdown(countdownDelay);
 				if (!result.success || result.cancelled) {
 					return;
 				}
-			} finally {
-				setCountdownActive(false);
 			}
-		}
 
-		startRecording();
+			await startRecording({ permissionsChecked: true });
+		} finally {
+			recordingStartLock.current = false;
+			setCountdownActive(false);
+		}
 	};
 
 	return {

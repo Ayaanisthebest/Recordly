@@ -1,3 +1,11 @@
+/** Screen-region crop in display-local DIP points (top-left origin). */
+export type CaptureRegion = {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+};
+
 export type SelectedSource = {
 	id?: string;
 	name: string;
@@ -5,6 +13,8 @@ export type SelectedSource = {
 	sourceType?: "screen" | "window";
 	appName?: string;
 	windowTitle?: string;
+	/** Present when capturing only a portion of a display (macOS-style region). */
+	captureRegion?: CaptureRegion;
 	[key: string]: unknown;
 };
 

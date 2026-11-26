@@ -162,6 +162,17 @@ export interface ExportResult {
 	filePath?: string;
 	error?: string;
 	metrics?: ExportMetrics;
+	/** Present when a GitHub ≤10MB GIF size-fit export completed. */
+	githubGifFit?: {
+		bytes: number;
+		overBudget: boolean;
+		preference: GifFitPreference;
+		fps: number;
+		width: number;
+		height: number;
+		maxColors: number;
+		attempts: number;
+	};
 }
 
 export interface VideoFrameData {
@@ -183,12 +194,25 @@ export type GifFrameRate = 15 | 20 | 25 | 30;
 
 export type GifSizePreset = "medium" | "large" | "original";
 
+/** Manual gif.js controls vs one-click GitHub ≤10MB FFmpeg size-fit. */
+export type GifExportMode = "manual" | "github";
+
+/**
+ * Which dial to protect when fitting under the GitHub size budget.
+ * The other dials are sacrificed first.
+ */
+export type GifFitPreference = "resolution" | "smoothness" | "colors";
+
 export interface GifExportConfig {
 	frameRate: GifFrameRate;
 	loop: boolean;
 	sizePreset: GifSizePreset;
 	width: number;
 	height: number;
+	mode?: GifExportMode;
+	fitPreference?: GifFitPreference;
+	/** Soft ceiling for github mode; defaults to GitHub's 10MB attachment limit. */
+	targetMaxBytes?: number;
 }
 
 export interface ExportSettings {
@@ -228,4 +252,22 @@ export const VALID_GIF_FRAME_RATES: readonly GifFrameRate[] = [15, 20, 25, 30] a
 
 export function isValidGifFrameRate(rate: number): rate is GifFrameRate {
 	return VALID_GIF_FRAME_RATES.includes(rate as GifFrameRate);
+}
+
+export const GITHUB_GIF_MAX_BYTES = 10 * 1024 * 1024;
+
+export const GIF_EXPORT_MODES: readonly GifExportMode[] = ["manual", "github"] as const;
+
+export const GIF_FIT_PREFERENCES: readonly GifFitPreference[] = [
+	"resolution",
+	"smoothness",
+	"colors",
+] as const;
+
+export function isValidGifExportMode(value: unknown): value is GifExportMode {
+	return value === "manual" || value === "github";
+}
+
+export function isValidGifFitPreference(value: unknown): value is GifFitPreference {
+	return value === "resolution" || value === "smoothness" || value === "colors";
 }

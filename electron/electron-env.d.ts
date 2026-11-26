@@ -224,6 +224,61 @@ interface Window {
 		openSourceSelector: () => Promise<void>;
 		selectSource: (source: ProcessedDesktopSource) => Promise<ProcessedDesktopSource>;
 		showSourceHighlight: (source: ProcessedDesktopSource) => Promise<{ success: boolean }>;
+		startRegionSelect: (options?: {
+			displayId?: number | string | null;
+		}) => Promise<{
+			success: boolean;
+			canceled?: boolean;
+			source?: ProcessedDesktopSource;
+			error?: string;
+		}>;
+		getRegionSelectContext: () => Promise<{
+			success: boolean;
+			displays?: Array<{
+				id: number;
+				bounds: { x: number; y: number; width: number; height: number };
+				label: string;
+				scaleFactor: number;
+				primary: boolean;
+			}>;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			preferredDisplayId?: number | null;
+			error?: string;
+		}>;
+		confirmRegionSelect: (region: {
+			x: number;
+			y: number;
+			width: number;
+			height: number;
+		}) => Promise<{
+			success: boolean;
+			source?: ProcessedDesktopSource;
+			error?: string;
+		}>;
+		cancelRegionSelect: () => Promise<{
+			success: boolean;
+			canceled?: boolean;
+		}>;
+		getRecordingRegionOverlayContext: () => Promise<{
+			success: boolean;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			displayBounds?: { x: number; y: number; width: number; height: number };
+			displayId?: number;
+			region?: CaptureRegion;
+			globalRegion?: CaptureRegion;
+			phase?: "select" | "armed" | "recording";
+			error?: string;
+		}>;
+		onRegionFramePhaseChange: (
+			callback: (phase: "select" | "armed" | "recording") => void,
+		) => (() => void) | undefined;
+		getCursorScreenPoint: () => Promise<{ x: number; y: number }>;
+		getHudLayoutContext: () => Promise<{
+			success: boolean;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			primaryWorkArea?: { x: number; y: number; width: number; height: number };
+			primaryBounds?: { x: number; y: number; width: number; height: number };
+		}>;
 		getSelectedSource: () => Promise<ProcessedDesktopSource | null>;
 		onSelectedSourceChanged: (
 			callback: (source: ProcessedDesktopSource | null) => void,
@@ -560,6 +615,47 @@ interface Window {
 			error?: string;
 		}>;
 		discardExportedTemp: (tempPath: string) => Promise<{ success: boolean; error?: string }>;
+		encodeGifUnderBudget: (payload: {
+			inputPath: string;
+			baseWidth: number;
+			baseHeight: number;
+			loop?: boolean;
+			preference?: "resolution" | "smoothness" | "colors";
+			targetMaxBytes?: number;
+		}) => Promise<{
+			success: boolean;
+			sessionId?: string;
+			tempPath?: string;
+			bytes?: number;
+			settings?: {
+				fps: number;
+				scale: number;
+				maxColors: number;
+				width: number;
+				height: number;
+			};
+			preference?: "resolution" | "smoothness" | "colors";
+			overBudget?: boolean;
+			attempts?: number;
+			error?: string;
+		}>;
+		encodeGifUnderBudgetCancel: (sessionId: string) => Promise<{ success: boolean }>;
+		onEncodeGifUnderBudgetProgress: (
+			callback: (progress: {
+				sessionId: string;
+				phase: "fitting";
+				attempt: number;
+				settings: {
+					fps: number;
+					scale: number;
+					maxColors: number;
+					width: number;
+					height: number;
+				};
+				bytes: number;
+				preference: "resolution" | "smoothness" | "colors";
+			}) => void,
+		) => () => void;
 		getVideoAudioFallbackPaths: (videoPath: string) => Promise<{
 			success: boolean;
 			paths: string[];
@@ -941,6 +1037,13 @@ interface Window {
 	};
 }
 
+interface CaptureRegion {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
 interface ProcessedDesktopSource {
 	id: string;
 	name: string;
@@ -951,6 +1054,8 @@ interface ProcessedDesktopSource {
 	sourceType?: "screen" | "window";
 	appName?: string;
 	windowTitle?: string;
+	/** Display-local DIP points when recording a selected portion of the screen. */
+	captureRegion?: CaptureRegion;
 }
 
 interface CursorTelemetryPoint {

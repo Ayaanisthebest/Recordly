@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ATEMPO_FILTER_EPSILON } from "./ffmpeg/filters";
 import {
 	buildEditedTrackSourceAudioFilter,
+	buildNativeVideoExportArgs,
 	buildNativeConcatArgs,
 	buildNativeCudaOverlayStaticLayoutArgs,
 	buildNativeCudaScaleCpuPadStaticLayoutArgs,
@@ -12,6 +13,36 @@ import {
 	createNativeSquircleMaskPgmBuffer,
 	isNativeCudaOutOfMemory,
 } from "./nativeVideoExport";
+
+describe("buildNativeVideoExportArgs", () => {
+	it("does not vertically flip rawvideo frames from canvas getImageData readback", () => {
+		const args = buildNativeVideoExportArgs(
+			"libx264",
+			{
+				width: 1280,
+				height: 720,
+				frameRate: 15,
+				bitrate: 8_000_000,
+				encodingMode: "fast",
+			},
+			"output.mp4",
+		);
+
+		expect(args).toEqual(
+			expect.arrayContaining([
+				"-f",
+				"rawvideo",
+				"-pix_fmt",
+				"rgba",
+				"-s:v",
+				"1280x720",
+				"-framerate",
+				"15",
+			]),
+		);
+		expect(args).not.toContain("vflip");
+	});
+});
 
 describe("buildTrimmedSourceAudioFilter", () => {
 	it("concatenates trimmed source segments into a single output label", () => {

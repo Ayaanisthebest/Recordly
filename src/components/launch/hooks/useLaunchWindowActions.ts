@@ -8,15 +8,31 @@ export function useLaunchWindowActions() {
 	const [projectLibraryEntries, setProjectLibraryEntries] = useState<ProjectLibraryEntry[]>([]);
 
 	const handleSourceSelect = useCallback(async (source: DesktopSource) => {
-		await window.electronAPI.selectSource(source);
+		const { captureRegion: _captureRegion, ...fullSource } = source;
+		await window.electronAPI.selectSource(fullSource);
 		setSelectedSource(source.name);
 		setHasSelectedSource(true);
 		window.electronAPI.showSourceHighlight?.({
-			...source,
+			...fullSource,
 			name: source.appName ? `${source.appName} — ${source.name}` : source.name,
 			appName: source.appName,
 		});
 	}, []);
+
+	const handleSelectRegion = useCallback(
+		async (displayId?: string, options?: { onConfirmed?: () => void }) => {
+			if (!window.electronAPI?.startRegionSelect) {
+				return;
+			}
+			const result = await window.electronAPI.startRegionSelect({ displayId });
+			if (result.success && result.source?.name) {
+				setSelectedSource(result.source.name);
+				setHasSelectedSource(true);
+				options?.onConfirmed?.();
+			}
+		},
+		[],
+	);
 
 	const openVideoFile = useCallback(async () => {
 		const result = await window.electronAPI.openVideoFilePicker({ includeProjects: true });
@@ -67,6 +83,7 @@ export function useLaunchWindowActions() {
 		hasSelectedSource,
 		projectLibraryEntries,
 		handleSourceSelect,
+		handleSelectRegion,
 		openVideoFile,
 		openProjectFromLibrary,
 		syncSelectedSource,

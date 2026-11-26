@@ -36,6 +36,11 @@ let hudOverlayMouseReassertTimer: NodeJS.Timeout | null = null;
 let hudOverlayRecordingActive = false;
 let hudOverlayWebcamPreviewVisible = false;
 let countdownWindow: BrowserWindow | null = null;
+export type RegionFramePhase = "select" | "armed" | "recording";
+
+let regionSelectWindow: BrowserWindow | null = null;
+let recordingRegionOverlayWindow: BrowserWindow | null = null;
+let recordingRegionOverlayPhase: RegionFramePhase = "armed";
 let updateToastWindow: BrowserWindow | null = null;
 
 const HUD_OVERLAY_SETTINGS_FILE = path.join(USER_DATA_PATH, "hud-overlay-settings.json");
@@ -194,17 +199,22 @@ function getHudOverlayDisplay() {
 }
 
 function getHudOverlayBounds() {
+	const passthrough =
+		isHudOverlayMousePassthroughSupported() && !hudOverlayRecordingActive;
+
+	// On macOS, a full virtual-desktop HUD lets the bar drag across displays.
+	// (A single-display workArea window clamps CSS drag to that screen only.)
+	if (passthrough && process.platform === "darwin") {
+		return getVirtualDesktopBounds();
+	}
+
 	const { workArea } = getHudOverlayDisplay();
 	const fallbackExpanded = shouldExpandHudOverlayFallback({
 		fallbackExpanded: hudOverlayFallbackExpanded,
 		recordingActive: hudOverlayRecordingActive,
 		webcamPreviewVisible: hudOverlayWebcamPreviewVisible,
 	});
-	return getHudOverlayWindowBounds(
-		workArea,
-		isHudOverlayMousePassthroughSupported() && !hudOverlayRecordingActive,
-		fallbackExpanded,
-	);
+	return getHudOverlayWindowBounds(workArea, passthrough, fallbackExpanded);
 }
 
 function applyHudOverlayBounds() {
@@ -472,6 +482,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		hasShadow: false,
 		show: false,
 		focusable: false,
+		enableLargerThanScreen: true,
 		webPreferences: {
 			preload: path.join(electronWindowsDir, "preload.mjs"),
 			nodeIntegration: false,
@@ -1045,5 +1056,258 @@ export function closeCountdownWindow(): void {
 	if (countdownWindow && !countdownWindow.isDestroyed()) {
 		countdownWindow.close();
 		countdownWindow = null;
+	}
+}
+
+function getVirtualDesktopBounds() {
+	const displays = getScreen().getAllDisplays();
+	if (displays.length === 0) {
+		const primary = getScreen().getPrimaryDisplay().bounds;
+		return { ...primary };
+	}
+
+	let minX = Number.POSITIVE_INFINITY;
+	let minY = Number.POSITIVE_INFINITY;
+	let maxX = Number.NEGATIVE_INFINITY;
+	let maxY = Number.NEGATIVE_INFINITY;
+
+	for (const display of displays) {
+		const { x, y, width, height } = display.bounds;
+		minX = Math.min(minX, x);
+		minY = Math.min(minY, y);
+		maxX = Math.max(maxX, x + width);
+		maxY = Math.max(maxY, y + height);
+	}
+
+	return {
+		x: minX,
+		y: minY,
+		width: Math.max(1, maxX - minX),
+		height: Math.max(1, maxY - minY),
+	};
+}
+
+ipcMain.handle("get-cursor-screen-point", () => {
+	return getScreen().getCursorScreenPoint();
+});
+
+ipcMain.handle("get-hud-layout-context", () => {
+	const virtualBounds = getVirtualDesktopBounds();
+	const primary = getScreen().getPrimaryDisplay();
+	return {
+		success: true as const,
+		virtualBounds,
+		primaryWorkArea: primary.workArea,
+		primaryBounds: primary.bounds,
+	};
+});
+
+/**
+ * Fullscreen transparent overlay spanning the virtual desktop for macOS-style
+ * "Record Selected Portion" region picking.
+ */
+export function createRegionSelectWindow(): BrowserWindow {
+	closeRegionSelectWindow();
+
+	const bounds = getVirtualDesktopBounds();
+	const win = new BrowserWindow({
+		x: bounds.x,
+		y: bounds.y,
+		width: bounds.width,
+		height: bounds.height,
+		frame: false,
+		transparent: true,
+		resizable: false,
+		movable: false,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		hasShadow: false,
+		focusable: true,
+		fullscreenable: false,
+		enableLargerThanScreen: true,
+		show: false,
+		webPreferences: {
+			preload: path.join(electronWindowsDir, "preload.mjs"),
+			nodeIntegration: false,
+			contextIsolation: true,
+		},
+	});
+
+	regionSelectWindow = win;
+	win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+	win.setAlwaysOnTop(true, "screen-saver");
+	try {
+		win.setContentProtection(true);
+	} catch {
+		/* optional */
+	}
+
+	win.webContents.on("did-finish-load", () => {
+		if (!win.isDestroyed()) {
+			// Re-assert spanning bounds — macOS often clamps on first show.
+			const nextBounds = getVirtualDesktopBounds();
+			win.setBounds(nextBounds, false);
+			win.show();
+			win.focus();
+		}
+	});
+
+	win.on("closed", () => {
+		if (regionSelectWindow === win) {
+			regionSelectWindow = null;
+		}
+	});
+
+	if (VITE_DEV_SERVER_URL) {
+		win.loadURL(VITE_DEV_SERVER_URL + "?windowType=region-select");
+	} else {
+		win.loadFile(path.join(RENDERER_DIST, "index.html"), {
+			query: { windowType: "region-select" },
+		});
+	}
+
+	return win;
+}
+
+export function getRegionSelectWindow(): BrowserWindow | null {
+	return regionSelectWindow;
+}
+
+export function closeRegionSelectWindow(): void {
+	if (regionSelectWindow && !regionSelectWindow.isDestroyed()) {
+		regionSelectWindow.close();
+		regionSelectWindow = null;
+	}
+}
+
+export function restoreHudOverlayFromRegionSelect(): void {
+	if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+		if (hudOverlayWindow.isMinimized()) {
+			hudOverlayWindow.restore();
+		}
+		hudOverlayWindow.showInactive();
+	}
+}
+
+export function getRecordingRegionOverlayPhase(): RegionFramePhase {
+	return recordingRegionOverlayPhase;
+}
+
+/**
+ * Keep the existing region-select window as the recording frame so the crop
+ * outline never disappears during countdown (and we avoid a second fullscreen
+ * window flash).
+ */
+export function armRegionSelectWindowForRecording(): boolean {
+	const win = regionSelectWindow;
+	if (!win || win.isDestroyed()) {
+		return false;
+	}
+
+	recordingRegionOverlayWindow = win;
+	regionSelectWindow = null;
+	recordingRegionOverlayPhase = "armed";
+	win.setIgnoreMouseEvents(true);
+	try {
+		win.setFocusable(false);
+	} catch {
+		/* ignore */
+	}
+	win.on("closed", () => {
+		if (recordingRegionOverlayWindow === win) {
+			recordingRegionOverlayWindow = null;
+		}
+	});
+	if (!win.isDestroyed()) {
+		win.webContents.send("region-frame-phase", recordingRegionOverlayPhase);
+	}
+	return true;
+}
+
+export function setRecordingRegionOverlayPhase(phase: RegionFramePhase) {
+	recordingRegionOverlayPhase = phase;
+	const win = recordingRegionOverlayWindow;
+	if (!win || win.isDestroyed()) {
+		return;
+	}
+	win.webContents.send("region-frame-phase", phase);
+}
+
+/**
+ * Click-through, content-protected frame around an active region recording.
+ * Dims the exterior and draws a border so the capture area is obvious, without
+ * appearing in ScreenCaptureKit output.
+ */
+export function createRecordingRegionOverlayWindow(): BrowserWindow {
+	closeRecordingRegionOverlayWindow();
+
+	const bounds = getVirtualDesktopBounds();
+	const win = new BrowserWindow({
+		x: bounds.x,
+		y: bounds.y,
+		width: bounds.width,
+		height: bounds.height,
+		frame: false,
+		transparent: true,
+		resizable: false,
+		movable: false,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		hasShadow: false,
+		focusable: false,
+		fullscreenable: false,
+		enableLargerThanScreen: true,
+		show: false,
+		webPreferences: {
+			preload: path.join(electronWindowsDir, "preload.mjs"),
+			nodeIntegration: false,
+			contextIsolation: true,
+		},
+	});
+
+	recordingRegionOverlayWindow = win;
+	win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+	win.setAlwaysOnTop(true, "screen-saver");
+	win.setIgnoreMouseEvents(true);
+	try {
+		win.setContentProtection(true);
+	} catch {
+		/* optional on unsupported platforms */
+	}
+
+	win.webContents.on("did-finish-load", () => {
+		if (!win.isDestroyed()) {
+			win.setBounds(getVirtualDesktopBounds(), false);
+			win.webContents.send("region-frame-phase", recordingRegionOverlayPhase);
+			win.showInactive();
+			win.moveTop();
+		}
+	});
+
+	win.on("closed", () => {
+		if (recordingRegionOverlayWindow === win) {
+			recordingRegionOverlayWindow = null;
+		}
+	});
+
+	if (VITE_DEV_SERVER_URL) {
+		win.loadURL(VITE_DEV_SERVER_URL + "?windowType=recording-region");
+	} else {
+		win.loadFile(path.join(RENDERER_DIST, "index.html"), {
+			query: { windowType: "recording-region" },
+		});
+	}
+
+	return win;
+}
+
+export function getRecordingRegionOverlayWindow(): BrowserWindow | null {
+	return recordingRegionOverlayWindow;
+}
+
+export function closeRecordingRegionOverlayWindow(): void {
+	if (recordingRegionOverlayWindow && !recordingRegionOverlayWindow.isDestroyed()) {
+		recordingRegionOverlayWindow.close();
+		recordingRegionOverlayWindow = null;
 	}
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
+import { RecordingRegionOverlay } from "./components/launch/RecordingRegionOverlay";
+import { RegionSelectOverlay } from "./components/launch/RegionSelectOverlay";
 import { SourceSelector } from "./components/launch/SourceSelector";
 import { UpdateToastWindow } from "./components/launch/UpdateToastWindow";
 import { Toaster } from "./components/ui/sonner";
@@ -26,6 +28,8 @@ export default function App() {
 			type === "hud-overlay" ||
 			type === "source-selector" ||
 			type === "countdown" ||
+			type === "region-select" ||
+			type === "recording-region" ||
 			(type === "update-toast" && isMacOS)
 		) {
 			document.body.style.background = "transparent";
@@ -68,6 +72,10 @@ export default function App() {
 			return <SourceSelector />;
 		case "countdown":
 			return <CountdownOverlay />;
+		case "region-select":
+			return <RegionSelectOverlay />;
+		case "recording-region":
+			return <RecordingRegionOverlay />;
 		case "update-toast":
 			return <UpdateToastWindow />;
 		case "editor":

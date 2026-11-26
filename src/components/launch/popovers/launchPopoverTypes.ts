@@ -7,6 +7,12 @@ export interface DesktopSource {
 	sourceType?: "screen" | "window";
 	appName?: string;
 	windowTitle?: string;
+	captureRegion?: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
 }
 
 /**

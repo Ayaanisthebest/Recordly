@@ -6,6 +6,8 @@ import type {
 	ExportMp4FrameRate,
 	ExportPipelineModel,
 	ExportQuality,
+	GifExportMode,
+	GifFitPreference,
 	GifFrameRate,
 	GifSizePreset,
 } from "@/lib/exporter";
@@ -153,6 +155,8 @@ export interface ProjectEditorState {
 	gifFrameRate: GifFrameRate;
 	gifLoop: boolean;
 	gifSizePreset: GifSizePreset;
+	gifExportMode: GifExportMode;
+	gifFitPreference: GifFitPreference;
 }
 
 export interface EditorProjectData {
@@ -1107,6 +1111,13 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			editor.gifSizePreset === "original"
 				? editor.gifSizePreset
 				: "medium",
+		gifExportMode: editor.gifExportMode === "github" ? "github" : "manual",
+		gifFitPreference:
+			editor.gifFitPreference === "smoothness" ||
+			editor.gifFitPreference === "colors" ||
+			editor.gifFitPreference === "resolution"
+				? editor.gifFitPreference
+				: "resolution",
 	};
 }
 

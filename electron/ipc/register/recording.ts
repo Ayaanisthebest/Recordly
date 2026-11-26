@@ -14,6 +14,7 @@ import {
 } from "electron";
 import { showCursor } from "../../cursorHider";
 import { getMonitorHandles } from "../monitorResolver";
+import { resolveMacDisplayForCapture } from "../macDisplayResolve";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
 import { startWindowBoundsCapture, stopWindowBoundsCapture } from "../cursor/bounds";
 import { startInteractionCapture, stopInteractionCapture } from "../cursor/interaction";
@@ -39,6 +40,10 @@ import {
 	getSystemCursorHelperSourcePath,
 	getWindowsCaptureExePath,
 } from "../paths/binaries";
+import {
+	hideRecordingRegionOverlay,
+	showRecordingRegionOverlayIfNeeded,
+} from "./recordingRegionOverlay";
 import { rememberApprovedLocalReadPath } from "../project/manager";
 import {
 	getBrowserMicSidecarFilters,
@@ -668,8 +673,9 @@ export function registerRecordingHandlers(
 				// Warm up TCC: trigger an Electron-level screen capture API call so macOS
 				// activates the screen-recording grant for this process tree before the
 				// native helper binary spawns and calls SCStream.startCapture().
+				let warmupScreenSources: Electron.DesktopCapturerSource[] = [];
 				try {
-					await desktopCapturer.getSources({
+					warmupScreenSources = await desktopCapturer.getSources({
 						types: ["screen"],
 						thumbnailSize: { width: 1, height: 1 },
 					});
@@ -736,14 +742,36 @@ export function registerRecordingHandlers(
 				}
 
 				const windowId = parseWindowId(source?.id);
-				const screenId = Number(source?.display_id);
 
 				if (Number.isFinite(windowId) && windowId && source?.id?.startsWith("window:")) {
 					config.windowId = windowId;
-				} else if (Number.isFinite(screenId) && screenId > 0) {
-					config.displayId = screenId;
 				} else {
-					config.displayId = Number(getScreen().getPrimaryDisplay().id);
+					const resolvedDisplay = await resolveMacDisplayForCapture(
+						source?.display_id,
+						warmupScreenSources,
+					);
+					config.displayId = resolvedDisplay.cgDisplayId;
+					config.displayBoundsX = resolvedDisplay.bounds.x;
+					config.displayBoundsY = resolvedDisplay.bounds.y;
+					config.displayBoundsWidth = resolvedDisplay.bounds.width;
+					config.displayBoundsHeight = resolvedDisplay.bounds.height;
+				}
+
+				const captureRegion = source?.captureRegion;
+				if (
+					captureRegion &&
+					typeof captureRegion === "object" &&
+					Number.isFinite(captureRegion.x) &&
+					Number.isFinite(captureRegion.y) &&
+					Number.isFinite(captureRegion.width) &&
+					Number.isFinite(captureRegion.height) &&
+					captureRegion.width > 1 &&
+					captureRegion.height > 1
+				) {
+					config.cropX = captureRegion.x;
+					config.cropY = captureRegion.y;
+					config.cropWidth = captureRegion.width;
+					config.cropHeight = captureRegion.height;
 				}
 
 				setNativeCaptureOutputBuffer("");
@@ -1827,6 +1855,7 @@ export function registerRecordingHandlers(
 			sampleCursorPoint();
 			startCursorSampling();
 			void startInteractionCapture();
+			showRecordingRegionOverlayIfNeeded("recording");
 		} else {
 			setIsCursorCaptureActive(false);
 			stopCursorCapture();
@@ -1838,6 +1867,7 @@ export function registerRecordingHandlers(
 			resetCursorCaptureClock();
 			snapshotCursorTelemetryForPersistence();
 			setActiveCursorSamples([]);
+			hideRecordingRegionOverlay();
 		}
 
 		const source = selectedSource || { name: "Screen" };

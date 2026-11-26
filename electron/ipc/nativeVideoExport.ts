@@ -295,8 +295,6 @@ export function buildNativeVideoExportArgs(
 		String(options.frameRate),
 		"-i",
 		"pipe:0",
-		"-vf",
-		"vflip",
 		"-an",
 		"-c:v",
 		encoder,

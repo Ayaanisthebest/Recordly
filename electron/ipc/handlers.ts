@@ -6,6 +6,8 @@ import { registerPermissionHandlers } from "./register/permissions";
 import { registerProjectHandlers } from "./register/project";
 import { registerRecordingHandlers } from "./register/recording";
 import { registerSettingsHandlers } from "./register/settings";
+import { registerRecordingRegionOverlayHandlers } from "./register/recordingRegionOverlay";
+import { registerRegionSelectHandlers } from "./register/regionSelect";
 import { registerSourceHandlers } from "./register/sources";
 import {
 	selectedSource,
@@ -62,6 +64,8 @@ export function registerIpcHandlers(
 		createSourceSelectorWindow,
 		getSourceSelectorWindow,
 	});
+	registerRegionSelectHandlers();
+	registerRecordingRegionOverlayHandlers();
 	registerRecordingHandlers(onRecordingStateChange);
 	registerPermissionHandlers();
 	registerAssetHandlers();

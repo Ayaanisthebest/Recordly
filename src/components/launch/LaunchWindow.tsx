@@ -6,6 +6,7 @@ import {
 	MicrophoneSlashIcon,
 	MinusIcon,
 	MonitorIcon,
+	SelectionIcon,
 	TimerIcon,
 	VideoCameraIcon,
 	VideoCameraSlashIcon,
@@ -89,6 +90,7 @@ function LaunchWindowContent() {
 		hasSelectedSource,
 		projectLibraryEntries,
 		handleSourceSelect,
+		handleSelectRegion,
 		openVideoFile,
 		openProjectFromLibrary,
 		syncSelectedSource,
@@ -248,6 +250,25 @@ function LaunchWindowContent() {
 							</Button>
 						}
 					/>
+
+					<Button
+						variant="ghost"
+						size="icon"
+						iconSize="lg"
+						title={t("recording.selectRegion", "Select Region")}
+						disabled={countdownActive || recording}
+						onClick={() => {
+							beginInteractiveHudAction();
+							void handleSelectRegion(undefined, {
+								onConfirmed: () => {
+									void toggleRecording();
+								},
+							});
+						}}
+						className={styles.electronNoDrag}
+					>
+						<SelectionIcon size={18} />
+					</Button>
 
 					<Separator orientation="vertical" className="mx-[5px] h-6" />
 				</>

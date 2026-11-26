@@ -55,7 +55,33 @@ describe("resolveExportStartSettings", () => {
 				sizePreset: "medium",
 				width: 1280,
 				height: 720,
+				mode: "manual",
+				fitPreference: undefined,
+				targetMaxBytes: undefined,
 			},
+		});
+	});
+
+	it("uses GitHub aspirational settings and fit preference", () => {
+		expect(
+			resolveExportStartSettings({
+				...baseOptions,
+				sourceWidth: 2560,
+				sourceHeight: 1440,
+				exportFormat: "gif",
+				gifFrameRate: 30,
+				gifSizePreset: "original",
+				gifExportMode: "github",
+				gifFitPreference: "smoothness",
+			}).gifConfig,
+		).toMatchObject({
+			frameRate: 15,
+			sizePreset: "medium",
+			width: 1280,
+			height: 720,
+			mode: "github",
+			fitPreference: "smoothness",
+			targetMaxBytes: 10 * 1024 * 1024,
 		});
 	});
 
@@ -72,6 +98,7 @@ describe("resolveExportStartSettings", () => {
 			sizePreset: "original",
 			width: 1234,
 			height: 678,
+			mode: "manual",
 		});
 	});
 });

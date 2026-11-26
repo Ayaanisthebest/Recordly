@@ -7,9 +7,12 @@ import {
 	type ExportPipelineModel,
 	type ExportQuality,
 	type ExportSettings,
+	type GifExportMode,
+	type GifFitPreference,
 	GIF_SIZE_PRESETS,
 	type GifFrameRate,
 	type GifSizePreset,
+	GITHUB_GIF_MAX_BYTES,
 } from "@/lib/exporter";
 
 export function resolveExportStartSettings({
@@ -25,6 +28,8 @@ export function resolveExportStartSettings({
 	gifFrameRate,
 	gifLoop,
 	gifSizePreset,
+	gifExportMode = "manual",
+	gifFitPreference = "resolution",
 }: {
 	sourceWidth: number;
 	sourceHeight: number;
@@ -38,10 +43,21 @@ export function resolveExportStartSettings({
 	gifFrameRate: GifFrameRate;
 	gifLoop: boolean;
 	gifSizePreset: GifSizePreset;
+	gifExportMode?: GifExportMode;
+	gifFitPreference?: GifFitPreference;
 }): ExportSettings {
+	const isGithubGif = exportFormat === "gif" && gifExportMode === "github";
+	const effectiveGifPreset: GifSizePreset = isGithubGif ? "medium" : gifSizePreset;
+	const effectiveGifFrameRate: GifFrameRate = isGithubGif ? 15 : gifFrameRate;
+
 	const gifDimensions =
 		exportFormat === "gif"
-			? calculateOutputDimensions(sourceWidth, sourceHeight, gifSizePreset, GIF_SIZE_PRESETS)
+			? calculateOutputDimensions(
+					sourceWidth,
+					sourceHeight,
+					effectiveGifPreset,
+					GIF_SIZE_PRESETS,
+				)
 			: null;
 
 	return {
@@ -55,11 +71,14 @@ export function resolveExportStartSettings({
 		gifConfig:
 			exportFormat === "gif" && gifDimensions
 				? {
-						frameRate: gifFrameRate,
+						frameRate: effectiveGifFrameRate,
 						loop: gifLoop,
-						sizePreset: gifSizePreset,
+						sizePreset: effectiveGifPreset,
 						width: gifDimensions.width,
 						height: gifDimensions.height,
+						mode: gifExportMode,
+						fitPreference: isGithubGif ? gifFitPreference : undefined,
+						targetMaxBytes: isGithubGif ? GITHUB_GIF_MAX_BYTES : undefined,
 					}
 				: undefined,
 	};

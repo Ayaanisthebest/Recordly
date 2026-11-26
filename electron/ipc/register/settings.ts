@@ -20,6 +20,10 @@ import {
 	setCountdownTimer,
 } from "../state";
 import { parseJsonWithByteOrderMark } from "../utils";
+import {
+	hideRecordingRegionOverlayIfIdle,
+	showRecordingRegionOverlayIfNeeded,
+} from "./recordingRegionOverlay";
 
 const BROWSER_MICROPHONE_PROFILE_ENV = "RECORDLY_BROWSER_MIC_PROFILE";
 const DEFAULT_BROWSER_MICROPHONE_PROFILE = "processed";
@@ -233,6 +237,8 @@ export function registerSettingsHandlers() {
 		setCountdownInProgress(true);
 		setCountdownCancelled(false);
 		setCountdownRemaining(seconds);
+		// Keep the region frame visible for the whole countdown (no blank gap).
+		showRecordingRegionOverlayIfNeeded("armed");
 
 		const countdownWin = createCountdownWindow();
 
@@ -260,6 +266,7 @@ export function registerSettingsHandlers() {
 						closeCountdownWindow();
 						setCountdownInProgress(false);
 						setCountdownRemaining(null);
+						hideRecordingRegionOverlayIfIdle();
 						resolve({ success: false, cancelled: true });
 						return;
 					}
@@ -296,6 +303,7 @@ export function registerSettingsHandlers() {
 			setCountdownTimer(null);
 		}
 		closeCountdownWindow();
+		hideRecordingRegionOverlayIfIdle();
 		return { success: true };
 	});
 

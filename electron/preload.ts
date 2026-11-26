@@ -473,6 +473,71 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	discardExportedTemp: (tempPath: string) => {
 		return ipcRenderer.invoke("discard-exported-temp", tempPath);
 	},
+	encodeGifUnderBudget: (payload: {
+		inputPath: string;
+		baseWidth: number;
+		baseHeight: number;
+		loop?: boolean;
+		preference?: "resolution" | "smoothness" | "colors";
+		targetMaxBytes?: number;
+	}) => {
+		return ipcRenderer.invoke("encode-gif-under-budget", payload) as Promise<{
+			success: boolean;
+			sessionId?: string;
+			tempPath?: string;
+			bytes?: number;
+			settings?: {
+				fps: number;
+				scale: number;
+				maxColors: number;
+				width: number;
+				height: number;
+			};
+			preference?: "resolution" | "smoothness" | "colors";
+			overBudget?: boolean;
+			attempts?: number;
+			error?: string;
+		}>;
+	},
+	encodeGifUnderBudgetCancel: (sessionId: string) => {
+		return ipcRenderer.invoke("encode-gif-under-budget-cancel", sessionId);
+	},
+	onEncodeGifUnderBudgetProgress: (
+		callback: (progress: {
+			sessionId: string;
+			phase: "fitting";
+			attempt: number;
+			settings: {
+				fps: number;
+				scale: number;
+				maxColors: number;
+				width: number;
+				height: number;
+			};
+			bytes: number;
+			preference: "resolution" | "smoothness" | "colors";
+		}) => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			payload: {
+				sessionId: string;
+				phase: "fitting";
+				attempt: number;
+				settings: {
+					fps: number;
+					scale: number;
+					maxColors: number;
+					width: number;
+					height: number;
+				};
+				bytes: number;
+				preference: "resolution" | "smoothness" | "colors";
+			},
+		) => callback(payload);
+		ipcRenderer.on("encode-gif-under-budget-progress", listener);
+		return () => ipcRenderer.removeListener("encode-gif-under-budget-progress", listener);
+	},
 	getVideoAudioFallbackPaths: (videoPath: string) => {
 		return ipcRenderer.invoke("get-video-audio-fallback-paths", videoPath);
 	},
@@ -490,6 +555,73 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	showSourceHighlight: (source: ProcessedDesktopSource) => {
 		return ipcRenderer.invoke("show-source-highlight", source);
+	},
+	startRegionSelect: (options?: { displayId?: number | string | null }) => {
+		return ipcRenderer.invoke("start-region-select", options) as Promise<{
+			success: boolean;
+			canceled?: boolean;
+			source?: ProcessedDesktopSource;
+			error?: string;
+		}>;
+	},
+	getRegionSelectContext: () => {
+		return ipcRenderer.invoke("get-region-select-context") as Promise<{
+			success: boolean;
+			displays?: Array<{
+				id: number;
+				bounds: { x: number; y: number; width: number; height: number };
+				label: string;
+				scaleFactor: number;
+				primary: boolean;
+			}>;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			preferredDisplayId?: number | null;
+			error?: string;
+		}>;
+	},
+	confirmRegionSelect: (region: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	}) => {
+		return ipcRenderer.invoke("confirm-region-select", region);
+	},
+	cancelRegionSelect: () => {
+		return ipcRenderer.invoke("cancel-region-select");
+	},
+	getRecordingRegionOverlayContext: () => {
+		return ipcRenderer.invoke("get-recording-region-overlay-context") as Promise<{
+			success: boolean;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			displayBounds?: { x: number; y: number; width: number; height: number };
+			displayId?: number;
+			region?: { x: number; y: number; width: number; height: number };
+			globalRegion?: { x: number; y: number; width: number; height: number };
+			phase?: "select" | "armed" | "recording";
+			error?: string;
+		}>;
+	},
+	onRegionFramePhaseChange: (
+		callback: (phase: "select" | "armed" | "recording") => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			phase: "select" | "armed" | "recording",
+		) => callback(phase);
+		ipcRenderer.on("region-frame-phase", listener);
+		return () => ipcRenderer.removeListener("region-frame-phase", listener);
+	},
+	getCursorScreenPoint: () => {
+		return ipcRenderer.invoke("get-cursor-screen-point") as Promise<{ x: number; y: number }>;
+	},
+	getHudLayoutContext: () => {
+		return ipcRenderer.invoke("get-hud-layout-context") as Promise<{
+			success: boolean;
+			virtualBounds?: { x: number; y: number; width: number; height: number };
+			primaryWorkArea?: { x: number; y: number; width: number; height: number };
+			primaryBounds?: { x: number; y: number; width: number; height: number };
+		}>;
 	},
 	getSelectedSource: () => {
 		return ipcRenderer.invoke("get-selected-source");

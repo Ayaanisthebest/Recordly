@@ -81,7 +81,10 @@ export const SourceSelectorContent = ({
 	selectedSource = "Screen",
 	loading = false,
 	onSourceSelect = () => undefined,
-}: Pick<SourceSelectorProps, "screenSources" | "windowSources" | "selectedSource" | "loading" | "onSourceSelect">) => {
+}: Pick<
+	SourceSelectorProps,
+	"screenSources" | "windowSources" | "selectedSource" | "loading" | "onSourceSelect"
+>) => {
 	const t = useScopedT("launch");
 	const renderSourceItem = (source: DesktopSource, index: number) => {
 		const isSelected = selectedSource === source.name;

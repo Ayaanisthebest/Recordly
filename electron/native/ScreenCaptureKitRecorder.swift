@@ -14,6 +14,17 @@ struct CaptureConfig: Codable {
 	let microphoneDeviceId: String?
 	let microphoneLabel: String?
 	let microphoneOutputPath: String?
+	/// Region crop in display-local points (top-left origin), macOS Screenshot-style.
+	let cropX: Double?
+	let cropY: Double?
+	let cropWidth: Double?
+	let cropHeight: Double?
+	/// Electron top-left display bounds (points). Used to resolve the correct
+	/// SCDisplay when Electron ids and CGDirectDisplayID values diverge.
+	let displayBoundsX: Double?
+	let displayBoundsY: Double?
+	let displayBoundsWidth: Double?
+	let displayBoundsHeight: Double?
 }
 
 let targetCaptureFPS = 60
@@ -95,8 +106,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		let filter: SCContentFilter
-		let outputWidth: Int
-		let outputHeight: Int
+		var outputWidth: Int
+		var outputHeight: Int
 
 		if let windowId = config.windowId {
 			trackedWindowId = windowId
@@ -119,16 +130,40 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			streamConfig.height = outputHeight
 		} else {
 			trackedWindowId = nil
-			let displayId = config.displayId ?? CGMainDisplayID()
-			guard let display = availableContent.displays.first(where: { $0.displayID == displayId }) else {
+			guard let display = ScreenCaptureRecorder.resolveDisplay(from: availableContent, config: config) else {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
 			}
 
 			filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
-			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
-			outputHeight = max(2, Int(displayBounds.height) * scaleFactor)
+
+			let hasCrop =
+				config.cropWidth != nil &&
+				config.cropHeight != nil &&
+				(config.cropWidth ?? 0) > 1 &&
+				(config.cropHeight ?? 0) > 1
+
+			if hasCrop {
+				let cropX = max(0, config.cropX ?? 0)
+				let cropY = max(0, config.cropY ?? 0)
+				let cropW = max(2, config.cropWidth ?? 2)
+				let cropH = max(2, config.cropHeight ?? 2)
+				let clampedW = min(cropW, max(2, Double(displayBounds.width) - cropX))
+				let clampedH = min(cropH, max(2, Double(displayBounds.height) - cropY))
+				// ScreenCaptureKit sourceRect is in points with origin at the display's top-left.
+				streamConfig.sourceRect = CGRect(x: cropX, y: cropY, width: clampedW, height: clampedH)
+				outputWidth = max(2, Int((clampedW * Double(scaleFactor)).rounded(.toNearestOrAwayFromZero)))
+				outputHeight = max(2, Int((clampedH * Double(scaleFactor)).rounded(.toNearestOrAwayFromZero)))
+				// Keep even dimensions for common encoders.
+				if outputWidth % 2 != 0 { outputWidth -= 1 }
+				if outputHeight % 2 != 0 { outputHeight -= 1 }
+				outputWidth = max(2, outputWidth)
+				outputHeight = max(2, outputHeight)
+			} else {
+				outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
+				outputHeight = max(2, Int(displayBounds.height) * scaleFactor)
+			}
 			streamConfig.width = outputWidth
 			streamConfig.height = outputHeight
 		}
@@ -581,6 +616,67 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				}
 			}
 		}
+	}
+
+	/// Convert Quartz global bounds (origin at bottom-left of main display)
+	/// into Electron-style top-left bounds used by the renderer overlay.
+	private static func electronBounds(for displayId: CGDirectDisplayID) -> CGRect {
+		let quartz = CGDisplayBounds(displayId)
+		let main = CGDisplayBounds(CGMainDisplayID())
+		return CGRect(
+			x: quartz.origin.x,
+			y: main.height - quartz.origin.y - quartz.height,
+			width: quartz.width,
+			height: quartz.height
+		)
+	}
+
+	private static func resolveDisplay(from availableContent: SCShareableContent, config: CaptureConfig) -> SCDisplay? {
+		let hasCrop =
+			config.cropWidth != nil &&
+			config.cropHeight != nil &&
+			(config.cropWidth ?? 0) > 1 &&
+			(config.cropHeight ?? 0) > 1
+
+		if let bx = config.displayBoundsX,
+		   let by = config.displayBoundsY,
+		   let bw = config.displayBoundsWidth,
+		   let bh = config.displayBoundsHeight,
+		   bw > 1,
+		   bh > 1
+		{
+			let target = CGRect(x: bx, y: by, width: bw, height: bh)
+			if let matched = availableContent.displays.first(where: { display in
+				let bounds = electronBounds(for: display.displayID)
+				return abs(bounds.origin.x - target.origin.x) < 2.5
+					&& abs(bounds.origin.y - target.origin.y) < 2.5
+					&& abs(bounds.width - target.width) < 2.5
+					&& abs(bounds.height - target.height) < 2.5
+			}) {
+				return matched
+			}
+
+			if hasCrop {
+				let center = CGPoint(
+					x: bx + (config.cropX ?? 0) + (config.cropWidth ?? 0) / 2,
+					y: by + (config.cropY ?? 0) + (config.cropHeight ?? 0) / 2
+				)
+				if let containing = availableContent.displays.first(where: { display in
+					electronBounds(for: display.displayID).insetBy(dx: -1, dy: -1).contains(center)
+				}) {
+					return containing
+				}
+			}
+		}
+
+		if let displayId = config.displayId,
+		   let exact = availableContent.displays.first(where: { $0.displayID == displayId })
+		{
+			return exact
+		}
+
+		return availableContent.displays.first(where: { $0.displayID == CGMainDisplayID() })
+			?? availableContent.displays.first
 	}
 
 	private static func scaleFactor(for displayId: CGDirectDisplayID) -> Int {

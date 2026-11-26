@@ -11,6 +11,28 @@ import { clampHudOffsetToViewport } from "../hudViewportBounds";
 
 const DEFAULT_RECORDING_HUD_OFFSET = { x: 0, y: 0 };
 
+/**
+ * When the HUD window spans the virtual desktop, flex-centering lands on the
+ * seam between monitors. Nudge the initial offset so the bar starts on the
+ * primary display's bottom center instead.
+ */
+function offsetForPrimaryDisplay(layout: {
+	virtualBounds: { x: number; y: number; width: number; height: number };
+	primaryWorkArea: { x: number; y: number; width: number; height: number };
+}): { x: number; y: number } {
+	const { virtualBounds, primaryWorkArea } = layout;
+	const virtualCenterX = virtualBounds.width / 2;
+	const primaryCenterX =
+		primaryWorkArea.x - virtualBounds.x + primaryWorkArea.width / 2;
+	const virtualBottom = virtualBounds.height;
+	const primaryBottom =
+		primaryWorkArea.y - virtualBounds.y + primaryWorkArea.height;
+	return {
+		x: Math.round(primaryCenterX - virtualCenterX),
+		y: Math.round(primaryBottom - virtualBottom),
+	};
+}
+
 export function useHudBarDrag({
 	hudContentRef,
 	hudBarRef,
@@ -24,6 +46,30 @@ export function useHudBarDrag({
 	const [isHudDragging, setIsHudDragging] = useState(false);
 	const hudBarTransformRef = useRef<HTMLDivElement | null>(null);
 	const recordingHudOffsetRef = useRef(DEFAULT_RECORDING_HUD_OFFSET);
+	const didApplyPrimaryOffset = useRef(false);
+
+	useEffect(() => {
+		if (didApplyPrimaryOffset.current) return;
+		void window.electronAPI.getHudLayoutContext?.().then((context) => {
+			if (!context?.success || !context.virtualBounds || !context.primaryWorkArea) {
+				return;
+			}
+			// Only nudge when the HUD is truly multi-display spanning.
+			if (context.virtualBounds.width <= context.primaryWorkArea.width + 2) {
+				return;
+			}
+			const next = offsetForPrimaryDisplay({
+				virtualBounds: context.virtualBounds,
+				primaryWorkArea: context.primaryWorkArea,
+			});
+			didApplyPrimaryOffset.current = true;
+			recordingHudOffsetRef.current = next;
+			if (hudBarTransformRef.current) {
+				hudBarTransformRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`;
+			}
+			setRecordingHudOffset(next);
+		});
+	}, []);
 	const hudDragStartRef = useRef<
 		| {
 				pointerId: number;

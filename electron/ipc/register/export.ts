@@ -42,6 +42,7 @@ import {
 	settleNativeVideoExportWriteFrameRequest,
 } from "../export/native-video";
 import { getFfmpegBinaryPath } from "../ffmpeg/binary";
+import { encodeGifUnderBudget } from "../ffmpeg/gifUnderBudget";
 import {
 	buildNativeH264StreamExportArgs,
 	buildNativeVideoExportArgs,
@@ -251,6 +252,8 @@ function isTempPathSafe(tempPath: string): boolean {
 	const withSep = tempRoot.endsWith(path.sep) ? tempRoot : tempRoot + path.sep;
 	return candidate.startsWith(withSep);
 }
+
+const gifUnderBudgetSessions = new Map<string, { cancelled: boolean }>();
 
 export function registerExportHandlers() {
 	ipcMain.handle(
@@ -1080,5 +1083,71 @@ export function registerExportHandlers() {
 		} catch (error) {
 			return { success: false, error: String(error) };
 		}
+	});
+
+	ipcMain.handle(
+		"encode-gif-under-budget",
+		async (
+			event,
+			payload: {
+				inputPath: string;
+				baseWidth: number;
+				baseHeight: number;
+				loop?: boolean;
+				preference?: "resolution" | "smoothness" | "colors";
+				targetMaxBytes?: number;
+			},
+		) => {
+			const inputPath = payload?.inputPath;
+			if (typeof inputPath !== "string" || !isOwnedExportPath(inputPath)) {
+				return {
+					success: false,
+					error: "Input path is not an app-managed export temp",
+				};
+			}
+			if (
+				!Number.isFinite(payload.baseWidth) ||
+				!Number.isFinite(payload.baseHeight) ||
+				payload.baseWidth < 2 ||
+				payload.baseHeight < 2
+			) {
+				return { success: false, error: "Invalid base dimensions" };
+			}
+
+			const sessionId = `gif-fit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			const signal = { cancelled: false };
+			gifUnderBudgetSessions.set(sessionId, signal);
+
+			try {
+				const result = await encodeGifUnderBudget({
+					inputPath,
+					baseWidth: Math.round(payload.baseWidth),
+					baseHeight: Math.round(payload.baseHeight),
+					loop: payload.loop !== false,
+					preference: payload.preference,
+					targetMaxBytes: payload.targetMaxBytes,
+					signal,
+					onProgress: (info) => {
+						if (!event.sender.isDestroyed()) {
+							event.sender.send("encode-gif-under-budget-progress", {
+								sessionId,
+								...info,
+							});
+						}
+					},
+				});
+				return { sessionId, ...result };
+			} finally {
+				gifUnderBudgetSessions.delete(sessionId);
+			}
+		},
+	);
+
+	ipcMain.handle("encode-gif-under-budget-cancel", async (_event, sessionId: string) => {
+		const session = gifUnderBudgetSessions.get(sessionId);
+		if (session) {
+			session.cancelled = true;
+		}
+		return { success: true };
 	});
 }

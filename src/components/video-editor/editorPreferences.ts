@@ -61,6 +61,8 @@ type PersistedEditorControls = Pick<
 	| "gifFrameRate"
 	| "gifLoop"
 	| "gifSizePreset"
+	| "gifExportMode"
+	| "gifFitPreference"
 >;
 
 type PartialEditorControls = Partial<PersistedEditorControls>;
@@ -149,6 +151,8 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
 	gifFrameRate: DEFAULT_EDITOR_CONTROLS.gifFrameRate,
 	gifLoop: DEFAULT_EDITOR_CONTROLS.gifLoop,
 	gifSizePreset: DEFAULT_EDITOR_CONTROLS.gifSizePreset,
+	gifExportMode: DEFAULT_EDITOR_CONTROLS.gifExportMode,
+	gifFitPreference: DEFAULT_EDITOR_CONTROLS.gifFitPreference,
 	customAspectWidth: "16",
 	customAspectHeight: "9",
 	customWallpapers: [],
@@ -357,6 +361,8 @@ function normalizeEditorControls(
 		gifFrameRate: sanitizedRaw.gifFrameRate ?? fallback.gifFrameRate,
 		gifLoop: sanitizedRaw.gifLoop ?? fallback.gifLoop,
 		gifSizePreset: sanitizedRaw.gifSizePreset ?? fallback.gifSizePreset,
+		gifExportMode: sanitizedRaw.gifExportMode ?? fallback.gifExportMode,
+		gifFitPreference: sanitizedRaw.gifFitPreference ?? fallback.gifFitPreference,
 	};
 
 	const normalized = normalizeProjectEditor(candidate);
@@ -413,6 +419,8 @@ function normalizeEditorControls(
 		gifFrameRate: normalized.gifFrameRate,
 		gifLoop: normalized.gifLoop,
 		gifSizePreset: normalized.gifSizePreset,
+		gifExportMode: normalized.gifExportMode,
+		gifFitPreference: normalized.gifFitPreference,
 	};
 }
 

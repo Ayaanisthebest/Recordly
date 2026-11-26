@@ -65,6 +65,9 @@ import {
 	FrameRenderer,
 	GIF_SIZE_PRESETS,
 	GifExporter,
+	GithubGifExporter,
+	type GifExportMode,
+	type GifFitPreference,
 	type GifFrameRate,
 	type GifSizePreset,
 	ModernVideoExporter,
@@ -645,6 +648,12 @@ export default function VideoEditor() {
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>(
 		initialEditorPreferences.gifSizePreset,
 	);
+	const [gifExportMode, setGifExportMode] = useState<GifExportMode>(
+		initialEditorPreferences.gifExportMode ?? "manual",
+	);
+	const [gifFitPreference, setGifFitPreference] = useState<GifFitPreference>(
+		initialEditorPreferences.gifFitPreference ?? "resolution",
+	);
 	const hasCaptionsForSidecar = autoCaptionSettings.enabled && autoCaptions.length > 0;
 	const captionSidecarCues = useMemo(
 		() =>
@@ -810,6 +819,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			gifExportMode,
+			gifFitPreference,
 			autoCaptionSettings: { ...autoCaptionSettings },
 			whisperExecutablePath,
 			whisperModelPath,
@@ -867,6 +878,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			gifExportMode,
+			gifFitPreference,
 			autoCaptionSettings,
 			whisperExecutablePath,
 			whisperModelPath,
@@ -965,6 +978,8 @@ export default function VideoEditor() {
 		setGifFrameRate(snapshot.gifFrameRate);
 		setGifLoop(snapshot.gifLoop);
 		setGifSizePreset(snapshot.gifSizePreset);
+		setGifExportMode(snapshot.gifExportMode ?? "manual");
+		setGifFitPreference(snapshot.gifFitPreference ?? "resolution");
 		setAutoCaptionSettings({ ...snapshot.autoCaptionSettings });
 		setWhisperExecutablePath(snapshot.whisperExecutablePath);
 		setWhisperModelPath(snapshot.whisperModelPath);
@@ -1755,6 +1770,8 @@ export default function VideoEditor() {
 				gifFrameRate: GifFrameRate;
 				gifLoop: boolean;
 				gifSizePreset: GifSizePreset;
+				gifExportMode: GifExportMode;
+				gifFitPreference: GifFitPreference;
 				sourceAudioTrackSettingsByClip: Record<string, SourceAudioTrackSettings>;
 				defaultSourceAudioTrackSettings: SourceAudioTrackSettings;
 			}>,
@@ -1878,6 +1895,8 @@ export default function VideoEditor() {
 				gifFrameRate,
 				gifLoop,
 				gifSizePreset,
+				gifExportMode,
+				gifFitPreference,
 				sourceAudioTrackSettingsByClip,
 				defaultSourceAudioTrackSettings,
 			}),
@@ -1944,6 +1963,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			gifExportMode,
+			gifFitPreference,
 			frame,
 			sourceAudioTrackSettingsByClip,
 			defaultSourceAudioTrackSettings,
@@ -2143,6 +2164,8 @@ export default function VideoEditor() {
 			setGifFrameRate(normalizedEditor.gifFrameRate);
 			setGifLoop(normalizedEditor.gifLoop);
 			setGifSizePreset(normalizedEditor.gifSizePreset);
+			setGifExportMode(normalizedEditor.gifExportMode ?? "manual");
+			setGifFitPreference(normalizedEditor.gifFitPreference ?? "resolution");
 
 			setSelectedZoomId(null);
 			setSelectedClipId(null);
@@ -2497,6 +2520,10 @@ export default function VideoEditor() {
 						setGifFrameRate(initialEditorPreferences.gifFrameRate);
 						setGifLoop(initialEditorPreferences.gifLoop);
 						setGifSizePreset(initialEditorPreferences.gifSizePreset);
+						setGifExportMode(initialEditorPreferences.gifExportMode ?? "manual");
+						setGifFitPreference(
+							initialEditorPreferences.gifFitPreference ?? "resolution",
+						);
 						return;
 					}
 				}
@@ -2674,6 +2701,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			gifExportMode,
+			gifFitPreference,
 			whisperExecutablePath,
 			whisperModelPath,
 		});
@@ -2730,6 +2759,8 @@ export default function VideoEditor() {
 		gifFrameRate,
 		gifLoop,
 		gifSizePreset,
+		gifExportMode,
+		gifFitPreference,
 		whisperExecutablePath,
 		whisperModelPath,
 	]);
@@ -4631,92 +4662,200 @@ export default function VideoEditor() {
 				const recordSmokeProgress = smokeProgressSampler.record;
 
 				if (settings.format === "gif" && settings.gifConfig) {
-					// GIF Export
-					const gifExporter = new GifExporter({
-						videoUrl: videoPath,
-						width: settings.gifConfig.width,
-						height: settings.gifConfig.height,
-						frameRate: settings.gifConfig.frameRate,
-						loop: settings.gifConfig.loop,
-						sizePreset: settings.gifConfig.sizePreset,
-						wallpaper,
-						trimRegions,
-						speedRegions: effectiveSpeedRegions,
-						showShadow: effectiveShadowIntensity > 0,
-						shadowIntensity: effectiveShadowIntensity,
-						backgroundBlur,
-						zoomMotionBlur,
-						zoomMotionBlurTuning,
-						zoomTemporalMotionBlur,
-						zoomMotionBlurSampleCount,
-						zoomMotionBlurShutterFraction,
-						connectZooms,
-						zoomInDurationMs,
-						zoomInOverlapMs,
-						zoomOutDurationMs,
-						connectedZoomGapMs,
-						connectedZoomDurationMs,
-						zoomInEasing,
-						zoomOutEasing,
-						connectedZoomEasing,
-						borderRadius,
-						padding,
-						videoPadding: padding,
-						cropRegion,
-						webcam,
-						webcamUrl:
-							resolvedWebcamVideoUrl ??
-							(webcam.sourcePath ? toFileUrl(webcam.sourcePath) : null),
-						annotationRegions,
-						autoCaptions,
-						autoCaptionSettings,
-						zoomRegions: effectiveZoomRegions,
-						cursorTelemetry: effectiveCursorTelemetry,
-						showCursor: effectiveShowCursor,
-						cursorStyle,
-						cursorSize,
-						cursorSmoothing,
-						cursorSpringStiffnessMultiplier,
-						cursorSpringDampingMultiplier,
-						cursorSpringMassMultiplier,
-						cameraSpringStiffnessMultiplier,
-						cameraSpringDampingMultiplier,
-						cameraSpringMassMultiplier,
-						zoomSmoothness,
-						zoomClassicMode,
-						cursorMotionBlur,
-						cursorClickEffect,
-						cursorClickEffectColor,
-						cursorClickEffectScale,
-						cursorClickEffectOpacity,
-						cursorClickEffectDurationMs,
-						cursorClickBounce,
-						cursorClickBounceDuration,
-						cursorSway,
-						frame,
-						previewWidth,
-						previewHeight,
-						maxDecodeQueue: smokeExportConfig.maxDecodeQueue,
-						maxPendingFrames: smokeExportConfig.maxPendingFrames,
-						onProgress: (progress: ExportProgress) => {
-							recordSmokeProgress(progress);
-							setExportProgress(progress);
-						},
-					});
+					const isGithubGif = settings.gifConfig.mode === "github";
+					const gifExporter = isGithubGif
+						? new GithubGifExporter({
+								videoUrl: videoPath,
+								width: settings.gifConfig.width,
+								height: settings.gifConfig.height,
+								frameRate: settings.gifConfig.frameRate,
+								loop: settings.gifConfig.loop,
+								sizePreset: settings.gifConfig.sizePreset,
+								fitPreference: settings.gifConfig.fitPreference,
+								targetMaxBytes: settings.gifConfig.targetMaxBytes,
+								wallpaper,
+								trimRegions,
+								speedRegions: effectiveSpeedRegions,
+								showShadow: effectiveShadowIntensity > 0,
+								shadowIntensity: effectiveShadowIntensity,
+								backgroundBlur,
+								zoomMotionBlur,
+								zoomMotionBlurTuning,
+								zoomTemporalMotionBlur,
+								zoomMotionBlurSampleCount,
+								zoomMotionBlurShutterFraction,
+								connectZooms,
+								zoomInDurationMs,
+								zoomInOverlapMs,
+								zoomOutDurationMs,
+								connectedZoomGapMs,
+								connectedZoomDurationMs,
+								zoomInEasing,
+								zoomOutEasing,
+								connectedZoomEasing,
+								borderRadius,
+								padding,
+								videoPadding: padding,
+								cropRegion,
+								webcam,
+								webcamUrl:
+									resolvedWebcamVideoUrl ??
+									(webcam.sourcePath ? toFileUrl(webcam.sourcePath) : null),
+								annotationRegions,
+								autoCaptions,
+								autoCaptionSettings,
+								zoomRegions: effectiveZoomRegions,
+								cursorTelemetry: effectiveCursorTelemetry,
+								showCursor: effectiveShowCursor,
+								cursorStyle,
+								cursorSize,
+								cursorSmoothing,
+								cursorSpringStiffnessMultiplier,
+								cursorSpringDampingMultiplier,
+								cursorSpringMassMultiplier,
+								cameraSpringStiffnessMultiplier,
+								cameraSpringDampingMultiplier,
+								cameraSpringMassMultiplier,
+								zoomSmoothness,
+								zoomClassicMode,
+								cursorMotionBlur,
+								cursorClickEffect,
+								cursorClickEffectColor,
+								cursorClickEffectScale,
+								cursorClickEffectOpacity,
+								cursorClickEffectDurationMs,
+								cursorClickBounce,
+								cursorClickBounceDuration,
+								cursorSway,
+								frame,
+								previewWidth,
+								previewHeight,
+								maxDecodeQueue: smokeExportConfig.maxDecodeQueue,
+								maxPendingFrames: smokeExportConfig.maxPendingFrames,
+								onProgress: (progress: ExportProgress) => {
+									recordSmokeProgress(progress);
+									setExportProgress(progress);
+								},
+							})
+						: new GifExporter({
+								videoUrl: videoPath,
+								width: settings.gifConfig.width,
+								height: settings.gifConfig.height,
+								frameRate: settings.gifConfig.frameRate,
+								loop: settings.gifConfig.loop,
+								sizePreset: settings.gifConfig.sizePreset,
+								wallpaper,
+								trimRegions,
+								speedRegions: effectiveSpeedRegions,
+								showShadow: effectiveShadowIntensity > 0,
+								shadowIntensity: effectiveShadowIntensity,
+								backgroundBlur,
+								zoomMotionBlur,
+								zoomMotionBlurTuning,
+								zoomTemporalMotionBlur,
+								zoomMotionBlurSampleCount,
+								zoomMotionBlurShutterFraction,
+								connectZooms,
+								zoomInDurationMs,
+								zoomInOverlapMs,
+								zoomOutDurationMs,
+								connectedZoomGapMs,
+								connectedZoomDurationMs,
+								zoomInEasing,
+								zoomOutEasing,
+								connectedZoomEasing,
+								borderRadius,
+								padding,
+								videoPadding: padding,
+								cropRegion,
+								webcam,
+								webcamUrl:
+									resolvedWebcamVideoUrl ??
+									(webcam.sourcePath ? toFileUrl(webcam.sourcePath) : null),
+								annotationRegions,
+								autoCaptions,
+								autoCaptionSettings,
+								zoomRegions: effectiveZoomRegions,
+								cursorTelemetry: effectiveCursorTelemetry,
+								showCursor: effectiveShowCursor,
+								cursorStyle,
+								cursorSize,
+								cursorSmoothing,
+								cursorSpringStiffnessMultiplier,
+								cursorSpringDampingMultiplier,
+								cursorSpringMassMultiplier,
+								cameraSpringStiffnessMultiplier,
+								cameraSpringDampingMultiplier,
+								cameraSpringMassMultiplier,
+								zoomSmoothness,
+								zoomClassicMode,
+								cursorMotionBlur,
+								cursorClickEffect,
+								cursorClickEffectColor,
+								cursorClickEffectScale,
+								cursorClickEffectOpacity,
+								cursorClickEffectDurationMs,
+								cursorClickBounce,
+								cursorClickBounceDuration,
+								cursorSway,
+								frame,
+								previewWidth,
+								previewHeight,
+								maxDecodeQueue: smokeExportConfig.maxDecodeQueue,
+								maxPendingFrames: smokeExportConfig.maxPendingFrames,
+								onProgress: (progress: ExportProgress) => {
+									recordSmokeProgress(progress);
+									setExportProgress(progress);
+								},
+							});
 
 					exporterRef.current = gifExporter as unknown as VideoExporter;
 					const result = await gifExporter.export();
 
-					if (result.success && result.blob) {
+					if (result.success && (result.blob || result.tempFilePath)) {
 						const timestamp = Date.now();
 						const fileName = `export-${timestamp}.gif`;
 						markExportAsSaving();
 
-						const { saveResult, pendingSave } = await saveBlobExport(
-							result.blob,
-							fileName,
-							smokeExportConfig.enabled ? smokeExportConfig.outputPath : null,
-						);
+						let saveResult: Awaited<
+							ReturnType<typeof window.electronAPI.finalizeExportedVideo>
+						>;
+						let pendingSave: PendingExportSave;
+
+						if (result.tempFilePath) {
+							saveResult = await window.electronAPI.finalizeExportedVideo({
+								tempPath: result.tempFilePath,
+								fileName,
+								outputPath: smokeExportConfig.enabled
+									? smokeExportConfig.outputPath
+									: null,
+							});
+							pendingSave = {
+								fileName,
+								tempFilePath: result.tempFilePath,
+							};
+						} else {
+							const saved = await saveBlobExport(
+								result.blob!,
+								fileName,
+								smokeExportConfig.enabled ? smokeExportConfig.outputPath : null,
+							);
+							saveResult = saved.saveResult;
+							pendingSave = saved.pendingSave;
+						}
+
+						if (result.githubGifFit) {
+							const fit = result.githubGifFit;
+							const mb = (fit.bytes / (1024 * 1024)).toFixed(2);
+							const summary = `${fit.fps}fps · ${fit.width}×${fit.height} · ${fit.maxColors} colors · ${mb} MB`;
+							if (fit.overBudget) {
+								toast.warning(
+									`GitHub GIF still over 10MB after max compression (${summary}). Consider shortening the clip.`,
+								);
+							} else {
+								toast.success(`GitHub GIF ready (${summary})`);
+							}
+						}
 
 						if (saveResult.canceled) {
 							pendingExportSaveRef.current = pendingSave;
@@ -5329,6 +5468,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			gifExportMode,
+			gifFitPreference,
 		});
 
 		setExportError(null);
@@ -5344,6 +5485,8 @@ export default function VideoEditor() {
 		gifFrameRate,
 		gifLoop,
 		gifSizePreset,
+		gifExportMode,
+		gifFitPreference,
 		hasCaptionsForSidecar,
 		includeCaptionSidecar,
 		exportBackendPreference,
@@ -6246,6 +6389,10 @@ export default function VideoEditor() {
 									onGifLoopChange={setGifLoop}
 									gifSizePreset={gifSizePreset}
 									onGifSizePresetChange={setGifSizePreset}
+									gifExportMode={gifExportMode}
+									onGifExportModeChange={setGifExportMode}
+									gifFitPreference={gifFitPreference}
+									onGifFitPreferenceChange={setGifFitPreference}
 									showCaptionSidecarOption={
 										hasCaptionsForSidecar && exportFormat === "mp4"
 									}
